@@ -1,0 +1,34 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "SVG_Icon.svg",
+          "name" : "SVG_Icon",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0.11863440309537054,
+              19.446159574661237
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.6
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.2
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
