@@ -46,6 +46,7 @@
 			children = (
 				000000000000000000000010 /* StockBadger */,
 				000000000000000000000020 /* Products */,
+				934B14DB2FDA08C2003B79BE /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -55,6 +56,14 @@
 				000000000000000000000120 /* StockBadger.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		934B14DB2FDA08C2003B79BE /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

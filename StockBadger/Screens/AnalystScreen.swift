@@ -1,12 +1,19 @@
 import SwiftUI
 
 struct AnalystScreen: View {
+    private let initialPrompt: String?
+
     @State private var messages: [AnalystChatMessage] = AnalystChatMessage.openingMessages
     @State private var messageText = ""
     @State private var isResponding = false
+    @State private var didSendInitialPrompt = false
     @FocusState private var isComposerFocused: Bool
 
     private let chatService = AnalystChatService()
+
+    init(initialPrompt: String? = nil) {
+        self.initialPrompt = initialPrompt
+    }
     private let samplePrompts = [
         "Is NVDA a buy?",
         "How is the S&P 500 doing today?",
@@ -43,10 +50,13 @@ struct AnalystScreen: View {
                 .safeAreaInset(edge: .bottom) {
                     composer
                 }
-                .background(Color(.systemGroupedBackground))
+                .background(Color.gray.opacity(0.08))
                 .navigationTitle("Analyst")
+                .task {
+                    sendInitialPromptIfNeeded()
+                }
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .primaryAction) {
                         Button(action: startNewChat) {
                             Image(systemName: "square.and.pencil")
                         }
@@ -103,7 +113,6 @@ struct AnalystScreen: View {
             TextField("Ask your analyst", text: $messageText, axis: .vertical)
                 .focused($isComposerFocused)
                 .lineLimit(1...5)
-                .textInputAutocapitalization(.sentences)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -128,6 +137,17 @@ struct AnalystScreen: View {
         !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isResponding
     }
 
+    private func sendInitialPromptIfNeeded() {
+        guard !didSendInitialPrompt,
+              let initialPrompt,
+              !initialPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        didSendInitialPrompt = true
+        send(question: initialPrompt)
+    }
+
     private func startNewChat() {
         guard !isResponding else {
             return
@@ -139,7 +159,11 @@ struct AnalystScreen: View {
     }
 
     private func sendMessage() {
-        let question = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        send(question: messageText)
+    }
+
+    private func send(question rawQuestion: String) {
+        let question = rawQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !question.isEmpty, !isResponding else {
             return
@@ -229,7 +253,7 @@ private struct AnalystMessageBubble: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(message.role == .user ? Color.blue : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(message.role == .user ? Color.blue : Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .frame(maxWidth: message.role == .user ? 300 : .infinity, alignment: message.role == .user ? .trailing : .leading)
 
             if message.role == .assistant {

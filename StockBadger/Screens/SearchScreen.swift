@@ -37,7 +37,6 @@ struct SearchScreen: View {
                 .foregroundStyle(.secondary)
 
             TextField("Enter Ticker or Company Name", text: $searchText)
-                .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
         }

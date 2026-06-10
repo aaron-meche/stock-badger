@@ -30,16 +30,16 @@ struct StockTreemapScreen: View {
                     if filteredQuotes.isEmpty {
                         emptyState
                     } else {
-                        stockGridSection(title: "Largest", quotes: largeQuotes, columns: 2, tileSize: .large)
-                        stockGridSection(title: "Large Cap", quotes: mediumQuotes, columns: 3, tileSize: .medium)
-                        stockGridSection(title: "Watchlist Size", quotes: smallQuotes, columns: 4, tileSize: .small)
+                        stockGridSection("Largest", quotes: largeQuotes, columns: 2, style: .featured)
+                        stockGridSection("Large Cap", quotes: mediumQuotes, columns: 3, style: .regular)
+                        stockGridSection("Watchlist Size", quotes: smallQuotes, columns: 4, style: .dense)
                     }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(AppChrome.pageBackground)
             .navigationTitle("Treemap")
         }
     }
@@ -53,10 +53,7 @@ struct StockTreemapScreen: View {
                             selectedCategory = category
                         }
                     } label: {
-                        MarketCategoryChip(
-                            title: category.title,
-                            isSelected: selectedCategory == category
-                        )
+                        FilterChip(title: category.title, isSelected: selectedCategory == category)
                     }
                     .buttonStyle(.plain)
                 }
@@ -67,24 +64,17 @@ struct StockTreemapScreen: View {
     }
 
     @ViewBuilder
-    private func stockGridSection(title: String, quotes: [StockQuote], columns: Int, tileSize: StockMapTileSize) -> some View {
+    private func stockGridSection(_ title: String, quotes: [StockQuote], columns: Int, style: StockTickerCardStyle) -> some View {
         if !quotes.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title)
-                        .font(.headline)
-
-                    Text("\(quotes.count)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+                SectionHeader(title, count: quotes.count)
 
                 LazyVGrid(columns: gridColumns(count: columns), spacing: 10) {
                     ForEach(quotes) { quote in
                         NavigationLink {
                             StockViewerScreen(symbol: quote.symbol, companyName: quote.shortName)
                         } label: {
-                            StockMapTickerTile(quote: quote, size: tileSize)
+                            StockTickerCard(quote, style: style)
                         }
                         .buttonStyle(.plain)
                     }
@@ -120,7 +110,7 @@ struct StockTreemapScreen: View {
     }
 }
 
-private struct MarketCategoryChip: View {
+private struct FilterChip: View {
     let title: String
     let isSelected: Bool
 
@@ -131,163 +121,11 @@ private struct MarketCategoryChip: View {
             .lineLimit(1)
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
-            .background(backgroundColor, in: Capsule())
+            .background(isSelected ? Color.blue : AppChrome.pageBackground, in: Capsule())
             .overlay {
                 Capsule()
-                    .stroke(borderColor, lineWidth: 1)
+                    .stroke(isSelected ? .clear : .secondary.opacity(0.24), lineWidth: 1)
             }
-    }
-
-    private var backgroundColor: Color {
-        isSelected ? .blue : Color(.secondarySystemGroupedBackground)
-    }
-
-    private var borderColor: Color {
-        isSelected ? .clear : .secondary.opacity(0.24)
-    }
-}
-
-private struct StockMapTickerTile: View {
-    let quote: StockQuote
-    let size: StockMapTileSize
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: size.verticalSpacing) {
-            HStack(alignment: .top, spacing: 6) {
-                Text(quote.symbol)
-                    .font(size.symbolFont)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-
-                Spacer(minLength: 0)
-
-                Image(systemName: quote.isUp ? "arrow.up.right" : "arrow.down.right")
-                    .font(size.arrowFont)
-                    .foregroundStyle(statusColor)
-            }
-
-            if size != .small {
-                Text(quote.shortName)
-                    .font(size.nameFont)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(size == .large ? 2 : 1)
-                    .frame(minHeight: size.nameMinHeight, alignment: .topLeading)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(quote.formattedPrice)
-                    .font(size.priceFont)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Text(quote.formattedChange)
-                    .font(size.changeFont)
-                    .foregroundStyle(statusColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-            }
-        }
-        .padding(size.padding)
-        .frame(maxWidth: .infinity, minHeight: size.minHeight, alignment: .topLeading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(statusColor.opacity(0.72), lineWidth: size.borderWidth)
-        }
-    }
-
-    private var statusColor: Color {
-        quote.isUp ? .green : .red
-    }
-}
-
-private enum StockMapTileSize {
-    case large
-    case medium
-    case small
-
-    var minHeight: CGFloat {
-        switch self {
-        case .large: 150
-        case .medium: 126
-        case .small: 98
-        }
-    }
-
-    var padding: CGFloat {
-        switch self {
-        case .large: 14
-        case .medium: 12
-        case .small: 9
-        }
-    }
-
-    var verticalSpacing: CGFloat {
-        switch self {
-        case .large: 10
-        case .medium: 8
-        case .small: 6
-        }
-    }
-
-    var nameMinHeight: CGFloat {
-        switch self {
-        case .large: 32
-        case .medium: 18
-        case .small: 0
-        }
-    }
-
-    var borderWidth: CGFloat {
-        switch self {
-        case .large: 1.4
-        case .medium: 1.2
-        case .small: 1
-        }
-    }
-
-    var symbolFont: Font {
-        switch self {
-        case .large: .headline.bold()
-        case .medium: .subheadline.bold()
-        case .small: .caption.weight(.bold)
-        }
-    }
-
-    var arrowFont: Font {
-        switch self {
-        case .large: .caption.bold()
-        case .medium: .caption2.bold()
-        case .small: .caption2.bold()
-        }
-    }
-
-    var nameFont: Font {
-        switch self {
-        case .large: .caption
-        case .medium: .caption2
-        case .small: .caption2
-        }
-    }
-
-    var priceFont: Font {
-        switch self {
-        case .large: .subheadline.weight(.semibold)
-        case .medium: .caption.weight(.semibold)
-        case .small: .caption2.weight(.semibold)
-        }
-    }
-
-    var changeFont: Font {
-        switch self {
-        case .large: .caption2.weight(.semibold)
-        case .medium: .caption2.weight(.semibold)
-        case .small: .system(size: 9, weight: .semibold)
-        }
     }
 }
 

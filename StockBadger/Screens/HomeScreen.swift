@@ -25,14 +25,10 @@ struct HomeScreen: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(AppChrome.pageBackground)
             .navigationTitle("Home")
-            .task {
-                await loadMarketOverview()
-            }
-            .refreshable {
-                await loadMarketOverview()
-            }
+            .task { await loadMarketOverview() }
+            .refreshable { await loadMarketOverview() }
         }
     }
 
@@ -41,49 +37,11 @@ struct HomeScreen: View {
             StockViewerScreen(symbol: marketSymbol, companyName: "S&P 500 ETF")
         } label: {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("S&P 500")
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
-
-                        Text("Market overview")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    if isLoadingMarketOverview {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                if let marketQuote {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        Text(marketQuote.formattedPrice)
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-
-                        Text(marketQuote.formattedChange)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(marketQuote.isUp ? .green : .red)
-                            .padding(.bottom, 5)
-                    }
-                } else if let marketOverviewMessage {
-                    Text(marketOverviewMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                marketOverviewHeader
+                marketOverviewPrice
 
                 if marketPoints.count > 1 {
-                    HomeMiniLineChart(points: marketPoints, isPositive: isMarketChartPositive)
+                    MiniLineChart(points: marketPoints, isPositive: isMarketChartPositive)
                         .frame(height: 92)
                 }
             }
@@ -99,16 +57,62 @@ struct HomeScreen: View {
         .buttonStyle(.plain)
     }
 
+    private var marketOverviewHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("S&P 500")
+                    .font(.title2.bold())
+                    .foregroundStyle(.primary)
+
+                Text("Market overview")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if isLoadingMarketOverview {
+                ProgressView()
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var marketOverviewPrice: some View {
+        if let marketQuote {
+            HStack(alignment: .bottom, spacing: 12) {
+                Text(marketQuote.formattedPrice)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(marketQuote.formattedChange)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(marketQuote.isUp ? .green : .red)
+                    .padding(.bottom, 5)
+            }
+        } else if let marketOverviewMessage {
+            Text(marketOverviewMessage)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var topCompaniesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "Largest Companies", subtitle: "Top names by market cap")
+            SectionHeader("Largest Companies", subtitle: "Top names by market cap")
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: twoColumnGrid, spacing: 12) {
                 ForEach(topCompanies) { quote in
                     NavigationLink {
                         StockViewerScreen(symbol: quote.symbol, companyName: quote.shortName)
                     } label: {
-                        HomeCompanyTile(quote: quote)
+                        StockTickerCard(quote, style: .featured)
                     }
                     .buttonStyle(.plain)
                 }
@@ -118,14 +122,18 @@ struct HomeScreen: View {
 
     private var marketNotesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "Market Notes", subtitle: "Quick places to start")
+            SectionHeader("Market Notes", subtitle: "Quick places to start")
 
             VStack(spacing: 10) {
-                HomeNoteRow(icon: "chart.line.uptrend.xyaxis", title: "Browse the map", value: "Open the treemap to scan broad market movement.")
-                HomeNoteRow(icon: "magnifyingglass", title: "Research a ticker", value: "Search by company name or symbol to open a stock viewer.")
-                HomeNoteRow(icon: "list.bullet.rectangle", title: "Build lists", value: "Saved lists will become your custom research boards.")
+                InfoRow(icon: "chart.line.uptrend.xyaxis", title: "Browse the map", value: "Open the treemap to scan broad market movement.")
+                InfoRow(icon: "sparkles", title: "Ask the analyst", value: "Open any stock and request an AI fair-value breakdown.")
+                InfoRow(icon: "magnifyingglass", title: "Research a ticker", value: "Search by company name or symbol to open a stock viewer.")
             }
         }
+    }
+
+    private var twoColumnGrid: [GridItem] {
+        [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
     }
 
     private var isMarketChartPositive: Bool {
@@ -134,17 +142,6 @@ struct HomeScreen: View {
         }
 
         return last >= first
-    }
-
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.headline)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     private func loadMarketOverview() async {
@@ -192,88 +189,7 @@ struct HomeScreen: View {
     }
 }
 
-private struct HomeCompanyTile: View {
-    let quote: StockQuote
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text(quote.symbol)
-                    .font(.headline.bold())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                Image(systemName: quote.isUp ? "arrow.up.right" : "arrow.down.right")
-                    .font(.caption.bold())
-                    .foregroundStyle(quote.isUp ? .green : .red)
-            }
-
-            Text(quote.shortName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .frame(minHeight: 32, alignment: .topLeading)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(quote.formattedPrice)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(quote.formattedChange)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(quote.isUp ? .green : .red)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
-    }
-}
-
-private struct HomeNoteRow: View {
-    let icon: String
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.headline)
-                .foregroundStyle(.blue)
-                .frame(width: 34, height: 34)
-                .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(value)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
-    }
-}
-
-private struct HomeMiniLineChart: View {
+private struct MiniLineChart: View {
     let points: [StockPricePoint]
     let isPositive: Bool
 
@@ -284,17 +200,15 @@ private struct HomeMiniLineChart: View {
             let color = isPositive ? Color.green : Color.red
 
             ZStack {
-                area
-                    .fill(
-                        LinearGradient(
-                            colors: [color.opacity(0.28), color.opacity(0.03)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                area.fill(
+                    LinearGradient(
+                        colors: [color.opacity(0.28), color.opacity(0.03)],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
+                )
 
-                line
-                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                line.stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
             }
         }
     }
@@ -302,38 +216,28 @@ private struct HomeMiniLineChart: View {
     private func linePath(in size: CGSize) -> Path {
         Path { path in
             let coordinates = coordinates(in: size)
-
             guard let first = coordinates.first else { return }
-            path.move(to: first)
 
-            for point in coordinates.dropFirst() {
-                path.addLine(to: point)
-            }
+            path.move(to: first)
+            coordinates.dropFirst().forEach { path.addLine(to: $0) }
         }
     }
 
     private func areaPath(in size: CGSize) -> Path {
         Path { path in
             let coordinates = coordinates(in: size)
-
             guard let first = coordinates.first, let last = coordinates.last else { return }
 
             path.move(to: CGPoint(x: first.x, y: size.height))
             path.addLine(to: first)
-
-            for point in coordinates.dropFirst() {
-                path.addLine(to: point)
-            }
-
+            coordinates.dropFirst().forEach { path.addLine(to: $0) }
             path.addLine(to: CGPoint(x: last.x, y: size.height))
             path.closeSubpath()
         }
     }
 
     private func coordinates(in size: CGSize) -> [CGPoint] {
-        guard points.count > 1 else {
-            return []
-        }
+        guard points.count > 1 else { return [] }
 
         let prices = points.map(\.price)
         let minPrice = prices.min() ?? 0
