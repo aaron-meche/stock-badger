@@ -2,8 +2,8 @@ import SwiftUI
 
 enum AppTab: Hashable {
     case home
-    case explore
     case treemap
+    case analyst
     case lists
     case search
 
@@ -11,10 +11,10 @@ enum AppTab: Hashable {
         switch self {
         case .home:
             "Home"
-        case .explore:
-            "Explore"
         case .treemap:
             "Treemap"
+        case .analyst:
+            "Analyst"
         case .lists:
             "Lists"
         case .search:
@@ -26,10 +26,10 @@ enum AppTab: Hashable {
         switch self {
         case .home:
             "house"
-        case .explore:
-            "chart.line.uptrend.xyaxis"
         case .treemap:
             "square.grid.3x3"
+        case .analyst:
+            "sparkles"
         case .lists:
             "list.bullet.rectangle"
         case .search:

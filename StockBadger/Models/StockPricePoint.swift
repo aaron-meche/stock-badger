@@ -1,6 +1,6 @@
 import Foundation
 
-struct StockPricePoint: Identifiable, Hashable {
+struct StockPricePoint: Identifiable, Hashable, Codable {
     let date: Date
     let price: Double
 

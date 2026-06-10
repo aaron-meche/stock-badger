@@ -1,24 +1,39 @@
 import SwiftUI
 
 struct StockTreemapScreen: View {
-    @State private var quotes: [StockQuote] = BaselineStockQuoteProvider.quotes
-    @State private var isLoading = false
-    @State private var statusMessage = "Showing baseline market snapshot. Pull to refresh live quotes."
+    @State private var selectedCategory: MarketCategory = .entireMarket
 
-    private let quoteService: StockQuoteFetching = YahooFinanceQuoteService()
-    private let featuredSymbols = [
-        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "BRK-B", "LLY",
-        "AVGO", "TSLA", "JPM", "WMT", "V", "XOM", "MA", "UNH",
-        "COST", "ORCL", "NFLX", "PG", "HD", "JNJ", "ABBV", "BAC"
-    ]
+    private let quotes = BaselineStockQuoteProvider.quotes
+
+    private var filteredQuotes: [StockQuote] {
+        selectedCategory.filter(quotes).sorted { $0.marketCap > $1.marketCap }
+    }
+
+    private var largeQuotes: [StockQuote] {
+        filteredQuotes.filter { $0.marketCap >= 1_000_000_000_000 }
+    }
+
+    private var mediumQuotes: [StockQuote] {
+        filteredQuotes.filter { $0.marketCap < 1_000_000_000_000 && $0.marketCap >= 350_000_000_000 }
+    }
+
+    private var smallQuotes: [StockQuote] {
+        filteredQuotes.filter { $0.marketCap < 350_000_000_000 }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    headerView
+                VStack(alignment: .leading, spacing: 18) {
+                    categoryFilters
 
-                    contentView
+                    if filteredQuotes.isEmpty {
+                        emptyState
+                    } else {
+                        stockGridSection(title: "Largest", quotes: largeQuotes, columns: 2, tileSize: .large)
+                        stockGridSection(title: "Large Cap", quotes: mediumQuotes, columns: 3, tileSize: .medium)
+                        stockGridSection(title: "Watchlist Size", quotes: smallQuotes, columns: 4, tileSize: .small)
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
@@ -26,339 +41,304 @@ struct StockTreemapScreen: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Treemap")
-            .task {
-                await loadQuotes()
-            }
-            .refreshable {
-                await loadQuotes()
-            }
         }
     }
 
-    private var headerView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Market Map")
-                .font(.title2.bold())
-
+    private var categoryFilters: some View {
+        ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                marketSummaryPill(title: "Tracked", value: "\(quotes.count)")
-                marketSummaryPill(title: "Advancers", value: "\(quotes.filter(\.isUp).count)")
-                marketSummaryPill(title: "Decliners", value: "\(quotes.filter { !$0.isUp }.count)")
+                ForEach(MarketCategory.allCases) { category in
+                    Button {
+                        withAnimation(.snappy) {
+                            selectedCategory = category
+                        }
+                    } label: {
+                        MarketCategoryChip(
+                            title: category.title,
+                            isSelected: selectedCategory == category
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.vertical, 2)
         }
+        .scrollIndicators(.hidden)
     }
 
     @ViewBuilder
-    private var contentView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if isLoading {
-                loadingBanner
-            } else if !statusMessage.isEmpty {
-                statusBanner(statusMessage)
+    private func stockGridSection(title: String, quotes: [StockQuote], columns: Int, tileSize: StockMapTileSize) -> some View {
+        if !quotes.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.headline)
+
+                    Text("\(quotes.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                LazyVGrid(columns: gridColumns(count: columns), spacing: 10) {
+                    ForEach(quotes) { quote in
+                        NavigationLink {
+                            StockViewerScreen(symbol: quote.symbol, companyName: quote.shortName)
+                        } label: {
+                            StockMapTickerTile(quote: quote, size: tileSize)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
-
-            StockTreemapView(quotes: sortedQuotes)
-                .frame(height: 760)
-
-            moversView
         }
     }
 
-    private var sortedQuotes: [StockQuote] {
-        quotes.sorted { $0.marketCap > $1.marketCap }
-    }
-
-    private var loadingBanner: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-
-            Text("Refreshing live quotes...")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func statusBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "info.circle")
-                .font(.subheadline.weight(.semibold))
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "chart.rectangular")
+                .font(.title2)
                 .foregroundStyle(.secondary)
 
-            Text(message)
+            Text("No tickers in this category yet")
+                .font(.headline)
+
+            Text("Add more baseline symbols to expand this view.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private var moversView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Top Movers")
-                .font(.headline)
-
-            VStack(spacing: 10) {
-                ForEach(sortedQuotes.prefix(8)) { quote in
-                    StockMoverRow(quote: quote)
-                }
-            }
-        }
-    }
-
-    private func marketSummaryPill(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.subheadline.bold())
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func loadQuotes() async {
-        isLoading = true
-
-        do {
-            let fetchedQuotes = try await quoteService.fetchQuotes(for: featuredSymbols)
-
-            await MainActor.run {
-                if fetchedQuotes.isEmpty {
-                    quotes = BaselineStockQuoteProvider.quotes
-                    statusMessage = "Live quotes returned no data. Showing baseline market snapshot."
-                } else {
-                    quotes = mergedQuotes(liveQuotes: fetchedQuotes)
-                    statusMessage = "Live quotes refreshed. Market-cap sizing uses baseline weights."
-                }
-
-                isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                quotes = BaselineStockQuoteProvider.quotes
-                statusMessage = "Live quote provider is unavailable. Showing baseline market snapshot."
-                isLoading = false
-            }
-        }
-    }
-
-    private func mergedQuotes(liveQuotes: [StockQuote]) -> [StockQuote] {
-        let baselineBySymbol = Dictionary(uniqueKeysWithValues: BaselineStockQuoteProvider.quotes.map { ($0.symbol, $0) })
-
-        return liveQuotes.map { quote in
-            guard let baseline = baselineBySymbol[quote.symbol] else {
-                return quote
-            }
-
-            return StockQuote(
-                symbol: quote.symbol,
-                shortName: quote.shortName,
-                price: quote.price,
-                dailyChange: quote.dailyChange,
-                dailyChangePercent: quote.dailyChangePercent,
-                marketCap: baseline.marketCap
-            )
-        }
-    }
-}
-
-private struct StockTreemapView: View {
-    let quotes: [StockQuote]
-
-    var body: some View {
-        GeometryReader { proxy in
-            let rects = TreemapCalculator.rects(
-                for: quotes,
-                in: CGRect(origin: .zero, size: proxy.size),
-                spacing: 4
-            )
-
-            ZStack(alignment: .topLeading) {
-                ForEach(rects) { rect in
-                    NavigationLink {
-                        StockViewerScreen(symbol: rect.quote.symbol, companyName: rect.quote.shortName, quote: rect.quote)
-                    } label: {
-                        StockTreemapTile(quote: rect.quote)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: rect.frame.width, height: rect.frame.height)
-                    .position(x: rect.frame.midX, y: rect.frame.midY)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(18)
+        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(.quaternary, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
+    }
+
+    private func gridColumns(count: Int) -> [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 }
 
-private struct StockTreemapTile: View {
-    let quote: StockQuote
+private struct MarketCategoryChip: View {
+    let title: String
+    let isSelected: Bool
 
     var body: some View {
-        let isCompact = quote.marketCap < 600_000_000_000
-
-        VStack(alignment: .leading, spacing: isCompact ? 3 : 7) {
-            Text(quote.symbol)
-                .font(isCompact ? .headline : .title2.bold())
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-
-            Text(priceText)
-                .font(isCompact ? .caption : .subheadline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(changeText)
-                .font(isCompact ? .caption2 : .caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(isCompact ? 8 : 12)
-        .background(tileColor)
-        .overlay(alignment: .bottomTrailing) {
-            Image(systemName: quote.isUp ? "arrow.up.right" : "arrow.down.right")
-                .font(isCompact ? .caption.bold() : .headline.bold())
-                .foregroundStyle(.white.opacity(0.55))
-                .padding(isCompact ? 7 : 10)
-        }
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .lineLimit(1)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
+            .background(backgroundColor, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(borderColor, lineWidth: 1)
+            }
     }
 
-    private var tileColor: Color {
-        let intensity = min(abs(quote.dailyChangePercent) / 5, 1)
-        let opacity = 0.55 + (intensity * 0.35)
-        return quote.isUp ? Color.green.opacity(opacity) : Color.red.opacity(opacity)
+    private var backgroundColor: Color {
+        isSelected ? .blue : Color(.secondarySystemGroupedBackground)
     }
 
-    private var priceText: String {
-        quote.price.formatted(.currency(code: "USD"))
-    }
-
-    private var changeText: String {
-        let direction = quote.isUp ? "up" : "down"
-        let change = abs(quote.dailyChange).formatted(.currency(code: "USD"))
-        let percent = abs(quote.dailyChangePercent).formatted(.number.precision(.fractionLength(2)))
-        return "(\(direction)) \(change) (\(percent)%)"
+    private var borderColor: Color {
+        isSelected ? .clear : .secondary.opacity(0.24)
     }
 }
 
-private struct StockMoverRow: View {
+private struct StockMapTickerTile: View {
     let quote: StockQuote
+    let size: StockMapTileSize
 
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(quote.isUp ? Color.green : Color.red)
-                .frame(width: 4, height: 42)
+        VStack(alignment: .leading, spacing: size.verticalSpacing) {
+            HStack(alignment: .top, spacing: 6) {
+                Text(quote.symbol)
+                    .font(size.symbolFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: quote.isUp ? "arrow.up.right" : "arrow.down.right")
+                    .font(size.arrowFont)
+                    .foregroundStyle(statusColor)
+            }
+
+            if size != .small {
+                Text(quote.shortName)
+                    .font(size.nameFont)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(size == .large ? 2 : 1)
+                    .frame(minHeight: size.nameMinHeight, alignment: .topLeading)
+            }
+
+            Spacer(minLength: 0)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(quote.symbol)
-                    .font(.headline)
-
-                Text(quote.shortName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(quote.formattedPrice)
+                    .font(size.priceFont)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-            }
+                    .minimumScaleFactor(0.72)
 
-            Spacer(minLength: 12)
-
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(quote.price.formatted(.currency(code: "USD")))
-                    .font(.subheadline.weight(.semibold))
-
-                Text(changeText)
-                    .font(.caption)
-                    .foregroundStyle(quote.isUp ? .green : .red)
+                Text(quote.formattedChange)
+                    .font(size.changeFont)
+                    .foregroundStyle(statusColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
             }
         }
-        .padding(14)
+        .padding(size.padding)
+        .frame(maxWidth: .infinity, minHeight: size.minHeight, alignment: .topLeading)
         .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
+                .stroke(statusColor.opacity(0.72), lineWidth: size.borderWidth)
         }
     }
 
-    private var changeText: String {
-        let direction = quote.isUp ? "up" : "down"
-        let change = abs(quote.dailyChange).formatted(.currency(code: "USD"))
-        let percent = abs(quote.dailyChangePercent).formatted(.number.precision(.fractionLength(2)))
-        return "(\(direction)) \(change) (\(percent)%)"
+    private var statusColor: Color {
+        quote.isUp ? .green : .red
     }
 }
 
-private struct TreemapRect: Identifiable {
-    let id: String
-    let quote: StockQuote
-    let frame: CGRect
+private enum StockMapTileSize {
+    case large
+    case medium
+    case small
+
+    var minHeight: CGFloat {
+        switch self {
+        case .large: 150
+        case .medium: 126
+        case .small: 98
+        }
+    }
+
+    var padding: CGFloat {
+        switch self {
+        case .large: 14
+        case .medium: 12
+        case .small: 9
+        }
+    }
+
+    var verticalSpacing: CGFloat {
+        switch self {
+        case .large: 10
+        case .medium: 8
+        case .small: 6
+        }
+    }
+
+    var nameMinHeight: CGFloat {
+        switch self {
+        case .large: 32
+        case .medium: 18
+        case .small: 0
+        }
+    }
+
+    var borderWidth: CGFloat {
+        switch self {
+        case .large: 1.4
+        case .medium: 1.2
+        case .small: 1
+        }
+    }
+
+    var symbolFont: Font {
+        switch self {
+        case .large: .headline.bold()
+        case .medium: .subheadline.bold()
+        case .small: .caption.weight(.bold)
+        }
+    }
+
+    var arrowFont: Font {
+        switch self {
+        case .large: .caption.bold()
+        case .medium: .caption2.bold()
+        case .small: .caption2.bold()
+        }
+    }
+
+    var nameFont: Font {
+        switch self {
+        case .large: .caption
+        case .medium: .caption2
+        case .small: .caption2
+        }
+    }
+
+    var priceFont: Font {
+        switch self {
+        case .large: .subheadline.weight(.semibold)
+        case .medium: .caption.weight(.semibold)
+        case .small: .caption2.weight(.semibold)
+        }
+    }
+
+    var changeFont: Font {
+        switch self {
+        case .large: .caption2.weight(.semibold)
+        case .medium: .caption2.weight(.semibold)
+        case .small: .system(size: 9, weight: .semibold)
+        }
+    }
 }
 
-private enum TreemapCalculator {
-    static func rects(for quotes: [StockQuote], in frame: CGRect, spacing: CGFloat) -> [TreemapRect] {
-        split(quotes, in: frame, spacing: spacing)
-    }
+private enum MarketCategory: String, CaseIterable, Identifiable {
+    case entireMarket
+    case technology
+    case banking
+    case defense
+    case healthcare
+    case consumer
+    case energy
 
-    private static func split(_ quotes: [StockQuote], in frame: CGRect, spacing: CGFloat) -> [TreemapRect] {
-        guard let firstQuote = quotes.first else {
-            return []
-        }
+    var id: String { rawValue }
 
-        if quotes.count == 1 {
-            return [TreemapRect(id: firstQuote.id, quote: firstQuote, frame: frame.insetBy(dx: spacing / 2, dy: spacing / 2))]
-        }
-
-        let totalWeight = quotes.reduce(0) { $0 + max($1.marketCap, 1) }
-        let splitIndex = balancedSplitIndex(for: quotes, totalWeight: totalWeight)
-        let leadingQuotes = Array(quotes[..<splitIndex])
-        let trailingQuotes = Array(quotes[splitIndex...])
-        let leadingWeight = leadingQuotes.reduce(0) { $0 + max($1.marketCap, 1) }
-        let ratio = leadingWeight / totalWeight
-
-        if frame.width >= frame.height {
-            let leadingWidth = frame.width * ratio
-            let leadingFrame = CGRect(x: frame.minX, y: frame.minY, width: leadingWidth, height: frame.height)
-            let trailingFrame = CGRect(x: frame.minX + leadingWidth, y: frame.minY, width: frame.width - leadingWidth, height: frame.height)
-            return split(leadingQuotes, in: leadingFrame, spacing: spacing) + split(trailingQuotes, in: trailingFrame, spacing: spacing)
-        } else {
-            let leadingHeight = frame.height * ratio
-            let leadingFrame = CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: leadingHeight)
-            let trailingFrame = CGRect(x: frame.minX, y: frame.minY + leadingHeight, width: frame.width, height: frame.height - leadingHeight)
-            return split(leadingQuotes, in: leadingFrame, spacing: spacing) + split(trailingQuotes, in: trailingFrame, spacing: spacing)
+    var title: String {
+        switch self {
+        case .entireMarket: "Entire Market"
+        case .technology: "Technology"
+        case .banking: "Banking"
+        case .defense: "Defense"
+        case .healthcare: "Healthcare"
+        case .consumer: "Consumer"
+        case .energy: "Energy"
         }
     }
 
-    private static func balancedSplitIndex(for quotes: [StockQuote], totalWeight: Double) -> Int {
-        var runningWeight = 0.0
-        var bestIndex = 1
-        var bestDifference = Double.greatestFiniteMagnitude
-
-        for index in 1..<quotes.count {
-            runningWeight += max(quotes[index - 1].marketCap, 1)
-            let difference = abs((totalWeight / 2) - runningWeight)
-
-            if difference < bestDifference {
-                bestDifference = difference
-                bestIndex = index
-            }
+    func filter(_ quotes: [StockQuote]) -> [StockQuote] {
+        guard self != .entireMarket else {
+            return quotes
         }
 
-        return bestIndex
+        return quotes.filter { symbols.contains($0.symbol) }
+    }
+
+    private var symbols: Set<String> {
+        switch self {
+        case .entireMarket:
+            []
+        case .technology:
+            ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AVGO", "ORCL"]
+        case .banking:
+            ["BRK-B", "JPM", "BAC", "V", "MA"]
+        case .defense:
+            ["LMT", "RTX", "NOC", "GD"]
+        case .healthcare:
+            ["LLY", "UNH", "JNJ", "ABBV"]
+        case .consumer:
+            ["AMZN", "TSLA", "WMT", "COST", "PG", "HD", "NFLX"]
+        case .energy:
+            ["XOM"]
+        }
     }
 }
 

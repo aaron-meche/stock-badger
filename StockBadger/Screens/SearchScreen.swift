@@ -93,7 +93,7 @@ struct SearchScreen: View {
             LazyVStack(spacing: 10) {
                 ForEach(results) { result in
                     NavigationLink {
-                        StockViewerScreen(symbol: result.symbol, companyName: result.name, quote: BaselineStockQuoteProvider.quote(for: result.symbol))
+                        StockViewerScreen(symbol: result.symbol, companyName: result.name)
                     } label: {
                         StockSearchResultRow(result: result)
                     }

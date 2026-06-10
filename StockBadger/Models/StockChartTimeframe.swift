@@ -38,19 +38,6 @@ enum StockChartTimeframe: String, CaseIterable, Identifiable {
         }
     }
 
-    var targetMoveMultiplier: Double {
-        switch self {
-        case .oneDay: 1
-        case .oneWeek: 2.4
-        case .oneMonth: 4.1
-        case .threeMonths: 7.2
-        case .yearToDate: 9.4
-        case .oneYear: 12.6
-        case .fiveYears: 34
-        case .max: 58
-        }
-    }
-
     var earliestDate: Date? {
         let calendar = Calendar.current
         let now = Date()

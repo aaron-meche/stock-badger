@@ -25,7 +25,11 @@ enum BaselineStockQuoteProvider {
         StockQuote(symbol: "HD", shortName: "The Home Depot, Inc.", price: 365.80, dailyChange: -2.16, dailyChangePercent: -0.59, marketCap: 364_000_000_000),
         StockQuote(symbol: "JNJ", shortName: "Johnson & Johnson", price: 153.67, dailyChange: 0.42, dailyChangePercent: 0.27, marketCap: 370_000_000_000),
         StockQuote(symbol: "ABBV", shortName: "AbbVie Inc.", price: 186.35, dailyChange: 1.18, dailyChangePercent: 0.64, marketCap: 329_000_000_000),
-        StockQuote(symbol: "BAC", shortName: "Bank of America Corporation", price: 45.41, dailyChange: -0.28, dailyChangePercent: -0.61, marketCap: 344_000_000_000)
+        StockQuote(symbol: "BAC", shortName: "Bank of America Corporation", price: 45.41, dailyChange: -0.28, dailyChangePercent: -0.61, marketCap: 344_000_000_000),
+        StockQuote(symbol: "RTX", shortName: "RTX Corporation", price: 126.58, dailyChange: 0.72, dailyChangePercent: 0.57, marketCap: 168_000_000_000),
+        StockQuote(symbol: "LMT", shortName: "Lockheed Martin Corporation", price: 466.23, dailyChange: -1.91, dailyChangePercent: -0.41, marketCap: 109_000_000_000),
+        StockQuote(symbol: "NOC", shortName: "Northrop Grumman Corporation", price: 505.14, dailyChange: 3.26, dailyChangePercent: 0.65, marketCap: 73_000_000_000),
+        StockQuote(symbol: "GD", shortName: "General Dynamics Corporation", price: 288.70, dailyChange: -0.84, dailyChangePercent: -0.29, marketCap: 79_000_000_000)
     ]
 
     static func quote(for symbol: String) -> StockQuote? {

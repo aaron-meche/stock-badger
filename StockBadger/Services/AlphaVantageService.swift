@@ -9,9 +9,7 @@ enum AlphaVantageError: LocalizedError {
         switch self {
         case .missingAPIKey:
             "Missing Alpha Vantage API key."
-        case .invalidResponse(let message):
-            message
-        case .rateLimited(let message):
+        case .invalidResponse(let message), .rateLimited(let message):
             message
         }
     }
@@ -21,6 +19,7 @@ struct AlphaVantageService: StockQuoteFetching, StockChartFetching {
     private let baseURL = URL(string: "https://www.alphavantage.co/query")!
     private let apiKey: String
     private let urlSession: URLSession
+    private let cache = MarketDataCache.shared
 
     init(apiKey: String = AlphaVantageService.apiKeyFromBundle(), urlSession: URLSession = .shared) {
         self.apiKey = apiKey
@@ -28,39 +27,62 @@ struct AlphaVantageService: StockQuoteFetching, StockChartFetching {
     }
 
     func fetchQuotes(for symbols: [String]) async throws -> [StockQuote] {
-        guard !apiKey.isEmpty, !apiKey.contains("$(") else {
-            throw AlphaVantageError.missingAPIKey
-        }
-
         var quotes: [StockQuote] = []
 
         for symbol in symbols.map(normalizedSymbol).filter({ !$0.isEmpty }) {
-            let quote = try await fetchQuote(for: symbol)
-            quotes.append(quote)
+            if let quote = cache.quote(for: symbol, maxAge: .minutes(15)) {
+                quotes.append(quote)
+                continue
+            }
+
+            do {
+                let quote = try await fetchQuoteFromNetwork(for: symbol)
+                cache.saveQuote(quote, for: symbol)
+                quotes.append(quote)
+            } catch {
+                if let cachedQuote = cache.quote(for: symbol) {
+                    quotes.append(cachedQuote)
+                } else {
+                    throw error
+                }
+            }
         }
 
         return quotes
     }
 
     func fetchPriceHistory(for symbol: String, timeframe: StockChartTimeframe) async throws -> [StockPricePoint] {
+        let symbol = normalizedSymbol(symbol)
+
+        guard !symbol.isEmpty else {
+            return []
+        }
+
+        if let points = cache.chart(for: symbol, timeframe: timeframe, maxAge: .hours(6)) {
+            return points
+        }
+
+        do {
+            let points = timeframe == .oneDay
+                ? try await fetchIntradayHistory(for: symbol)
+                : try await fetchDailyHistory(for: symbol, timeframe: timeframe)
+
+            cache.saveChart(points, for: symbol, timeframe: timeframe)
+            return points
+        } catch {
+            if let cachedPoints = cache.chart(for: symbol, timeframe: timeframe) {
+                return cachedPoints
+            }
+
+            throw error
+        }
+    }
+
+    private func fetchQuoteFromNetwork(for symbol: String) async throws -> StockQuote {
         guard !apiKey.isEmpty, !apiKey.contains("$(") else {
             throw AlphaVantageError.missingAPIKey
         }
 
-        let normalizedSymbol = normalizedSymbol(symbol)
-
-        guard !normalizedSymbol.isEmpty else {
-            return []
-        }
-
-        if timeframe == .oneDay {
-            return try await fetchIntradayHistory(for: normalizedSymbol)
-        }
-
-        return try await fetchDailyHistory(for: normalizedSymbol, timeframe: timeframe)
-    }
-
-    private func fetchQuote(for symbol: String) async throws -> StockQuote {
         let response: GlobalQuoteResponse = try await request(queryItems: [
             URLQueryItem(name: "function", value: "GLOBAL_QUOTE"),
             URLQueryItem(name: "symbol", value: symbol),
@@ -87,6 +109,10 @@ struct AlphaVantageService: StockQuoteFetching, StockChartFetching {
     }
 
     private func fetchIntradayHistory(for symbol: String) async throws -> [StockPricePoint] {
+        guard !apiKey.isEmpty, !apiKey.contains("$(") else {
+            throw AlphaVantageError.missingAPIKey
+        }
+
         let response: IntradayResponse = try await request(queryItems: [
             URLQueryItem(name: "function", value: "TIME_SERIES_INTRADAY"),
             URLQueryItem(name: "symbol", value: symbol),
@@ -101,6 +127,10 @@ struct AlphaVantageService: StockQuoteFetching, StockChartFetching {
     }
 
     private func fetchDailyHistory(for symbol: String, timeframe: StockChartTimeframe) async throws -> [StockPricePoint] {
+        guard !apiKey.isEmpty, !apiKey.contains("$(") else {
+            throw AlphaVantageError.missingAPIKey
+        }
+
         let outputSize = timeframe == .max || timeframe == .fiveYears ? "full" : "compact"
         let response: DailyResponse = try await request(queryItems: [
             URLQueryItem(name: "function", value: "TIME_SERIES_DAILY"),
@@ -158,6 +188,64 @@ struct AlphaVantageService: StockQuoteFetching, StockChartFetching {
 
     private static func apiKeyFromBundle() -> String {
         Bundle.main.object(forInfoDictionaryKey: "ApiKey") as? String ?? ""
+    }
+}
+
+private final class MarketDataCache {
+    static let shared = MarketDataCache()
+
+    private let defaults = UserDefaults.standard
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+
+    func quote(for symbol: String, maxAge: TimeInterval? = nil) -> StockQuote? {
+        cachedValue(for: "quote.\(symbol)", maxAge: maxAge)
+    }
+
+    func saveQuote(_ quote: StockQuote, for symbol: String) {
+        save(quote, for: "quote.\(symbol)")
+    }
+
+    func chart(for symbol: String, timeframe: StockChartTimeframe, maxAge: TimeInterval? = nil) -> [StockPricePoint]? {
+        cachedValue(for: "chart.\(symbol).\(timeframe.rawValue)", maxAge: maxAge)
+    }
+
+    func saveChart(_ points: [StockPricePoint], for symbol: String, timeframe: StockChartTimeframe) {
+        save(points, for: "chart.\(symbol).\(timeframe.rawValue)")
+    }
+
+    private func cachedValue<Value: Codable>(for key: String, maxAge: TimeInterval?) -> Value? {
+        guard let data = defaults.data(forKey: key),
+              let cachedValue = try? decoder.decode(CachedValue<Value>.self, from: data) else {
+            return nil
+        }
+
+        if let maxAge, Date().timeIntervalSince(cachedValue.savedAt) > maxAge {
+            return nil
+        }
+
+        return cachedValue.value
+    }
+
+    private func save<Value: Codable>(_ value: Value, for key: String) {
+        let cachedValue = CachedValue(value: value, savedAt: Date())
+        let data = try? encoder.encode(cachedValue)
+        defaults.set(data, forKey: key)
+    }
+}
+
+private struct CachedValue<Value: Codable>: Codable {
+    let value: Value
+    let savedAt: Date
+}
+
+private extension TimeInterval {
+    static func minutes(_ minutes: Double) -> TimeInterval {
+        minutes * 60
+    }
+
+    static func hours(_ hours: Double) -> TimeInterval {
+        hours * 60 * 60
     }
 }
 
