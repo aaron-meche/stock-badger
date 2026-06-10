@@ -92,7 +92,12 @@ struct SearchScreen: View {
         ScrollView {
             LazyVStack(spacing: 10) {
                 ForEach(results) { result in
-                    StockSearchResultRow(result: result)
+                    NavigationLink {
+                        StockViewerScreen(symbol: result.symbol, companyName: result.name, quote: BaselineStockQuoteProvider.quote(for: result.symbol))
+                    } label: {
+                        StockSearchResultRow(result: result)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.bottom, 12)

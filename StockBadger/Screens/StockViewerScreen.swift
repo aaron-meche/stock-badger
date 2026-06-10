@@ -5,9 +5,20 @@ struct StockViewerScreen: View {
     let companyName: String
     let quote: StockQuote?
 
-    @State private var selectedTimeframe: StockTimeframe = .oneDay
+    @State private var selectedTimeframe: StockChartTimeframe = .oneDay
+    @State private var selectedChartPoint: StockChartPoint?
+    @State private var liveQuote: StockQuote?
+    @State private var liveChartPointsByTimeframe: [StockChartTimeframe: [StockChartPoint]] = [:]
+    @State private var isLoadingMarketData = false
+    @State private var marketDataMessage = "Loading market data..."
+
+    private let marketDataService = AlphaVantageService()
 
     private var displayQuote: StockQuote {
+        if let liveQuote {
+            return liveQuote
+        }
+
         if let quote {
             return quote
         }
@@ -27,7 +38,11 @@ struct StockViewerScreen: View {
     }
 
     private var chartPoints: [StockChartPoint] {
-        StockChartDataFactory.points(for: displayQuote, timeframe: selectedTimeframe)
+        liveChartPointsByTimeframe[selectedTimeframe] ?? StockChartDataFactory.points(for: displayQuote, timeframe: selectedTimeframe)
+    }
+
+    private var displayedPrice: Double {
+        selectedChartPoint?.price ?? displayQuote.price
     }
 
     private var timeframeChange: StockTimeframeChange {
@@ -62,17 +77,32 @@ struct StockViewerScreen: View {
                 }
             }
         }
+        .task(id: displayQuote.symbol) {
+            await loadInitialMarketData()
+        }
     }
 
     private var priceHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(displayQuote.price.formatted(.currency(code: "USD")))
+            Text(displayedPrice.formatted(.currency(code: "USD")))
                 .font(.system(size: 42, weight: .bold, design: .rounded))
+                .contentTransition(.numericText(value: displayedPrice))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
-            Text("Market data preview")
-                .font(.subheadline)
+            HStack(spacing: 8) {
+                Text(selectedChartPoint == nil ? "Latest displayed price" : selectedTimeframe.title)
+
+                if isLoadingMarketData {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+            Text(marketDataMessage)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -81,7 +111,7 @@ struct StockViewerScreen: View {
         VStack(alignment: .leading, spacing: 16) {
             timeframeChangeLabel
 
-            StockLineChart(points: chartPoints, isPositive: timeframeChange.isPositive)
+            StockLineChart(points: chartPoints, isPositive: timeframeChange.isPositive, selectedPoint: $selectedChartPoint)
                 .frame(height: 260)
                 .padding(.top, 4)
 
@@ -109,9 +139,13 @@ struct StockViewerScreen: View {
     private var timeframePicker: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                ForEach(StockTimeframe.allCases) { timeframe in
+                ForEach(StockChartTimeframe.allCases) { timeframe in
                     Button {
                         selectedTimeframe = timeframe
+                        selectedChartPoint = nil
+                        Task {
+                            await loadChartData(for: timeframe)
+                        }
                     } label: {
                         Text(timeframe.title)
                             .font(.caption.weight(.semibold))
@@ -138,16 +172,96 @@ struct StockViewerScreen: View {
             StockViewerInfoRow(title: "Lists", value: "Saved list actions will appear here")
         }
     }
+
+    private func loadInitialMarketData() async {
+        isLoadingMarketData = true
+        marketDataMessage = "Loading Alpha Vantage quote..."
+
+        async let quoteLoad: Void = loadQuoteData()
+        async let chartLoad: Void = loadChartData(for: selectedTimeframe)
+        _ = await (quoteLoad, chartLoad)
+
+        isLoadingMarketData = false
+    }
+
+    private func loadQuoteData() async {
+        do {
+            let quotes = try await marketDataService.fetchQuotes(for: [symbol])
+
+            await MainActor.run {
+                if let quote = quotes.first {
+                    liveQuote = quote
+                    marketDataMessage = "Alpha Vantage quote loaded."
+                }
+            }
+        } catch {
+            await MainActor.run {
+                marketDataMessage = "Using cached preview quote. Alpha Vantage did not return a quote."
+            }
+        }
+    }
+
+    private func loadChartData(for timeframe: StockChartTimeframe) async {
+        if liveChartPointsByTimeframe[timeframe] != nil {
+            return
+        }
+
+        await MainActor.run {
+            isLoadingMarketData = true
+            marketDataMessage = "Loading \(timeframe.title) Alpha Vantage chart..."
+        }
+
+        do {
+            let pricePoints = try await marketDataService.fetchPriceHistory(for: symbol, timeframe: timeframe)
+            let chartPoints = pricePoints.enumerated().map { index, point in
+                StockChartPoint(index: index, price: point.price)
+            }
+
+            await MainActor.run {
+                if chartPoints.count > 1 {
+                    liveChartPointsByTimeframe[timeframe] = sampledChartPoints(chartPoints, maximumCount: timeframe.pointCount)
+                    marketDataMessage = "Alpha Vantage \(timeframe.title) chart loaded."
+                } else {
+                    marketDataMessage = "Using generated \(timeframe.title) preview chart."
+                }
+
+                isLoadingMarketData = false
+            }
+        } catch {
+            await MainActor.run {
+                marketDataMessage = "Using generated \(timeframe.title) preview chart. Alpha Vantage is unavailable or rate-limited."
+                isLoadingMarketData = false
+            }
+        }
+    }
+
+    private func sampledChartPoints(_ points: [StockChartPoint], maximumCount: Int) -> [StockChartPoint] {
+        guard points.count > maximumCount, maximumCount > 1 else {
+            return points.enumerated().map { index, point in
+                StockChartPoint(index: index, price: point.price)
+            }
+        }
+
+        let step = Double(points.count - 1) / Double(maximumCount - 1)
+
+        return (0..<maximumCount).map { index in
+            let sourceIndex = Int((Double(index) * step).rounded())
+            let point = points[min(sourceIndex, points.count - 1)]
+            return StockChartPoint(index: index, price: point.price)
+        }
+    }
 }
 
 private struct StockLineChart: View {
     let points: [StockChartPoint]
     let isPositive: Bool
+    @Binding var selectedPoint: StockChartPoint?
 
     var body: some View {
         GeometryReader { proxy in
             let path = linePath(in: proxy.size)
             let fillPath = areaPath(in: proxy.size)
+            let coordinates = coordinates(in: proxy.size)
             let color = isPositive ? Color.green : Color.red
 
             ZStack {
@@ -165,7 +279,39 @@ private struct StockLineChart: View {
 
                 path
                     .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+
+                if let selectedPoint,
+                   let selectedIndex = points.firstIndex(where: { $0.index == selectedPoint.index }),
+                   coordinates.indices.contains(selectedIndex) {
+                    let selectedCoordinate = coordinates[selectedIndex]
+
+                    Path { path in
+                        path.move(to: CGPoint(x: selectedCoordinate.x, y: 0))
+                        path.addLine(to: CGPoint(x: selectedCoordinate.x, y: proxy.size.height))
+                    }
+                    .stroke(.primary.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+
+                    Circle()
+                        .fill(color)
+                        .frame(width: 16, height: 16)
+                        .overlay {
+                            Circle()
+                                .stroke(Color(.systemBackground), lineWidth: 4)
+                        }
+                        .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+                        .position(selectedCoordinate)
+                }
             }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        selectedPoint = nearestPoint(to: value.location.x, in: proxy.size)
+                    }
+                    .onEnded { _ in
+                        selectedPoint = nil
+                    }
+            )
         }
         .accessibilityLabel("Stock price chart")
     }
@@ -224,6 +370,18 @@ private struct StockLineChart: View {
             return CGPoint(x: x, y: y)
         }
     }
+
+    private func nearestPoint(to xPosition: CGFloat, in size: CGSize) -> StockChartPoint? {
+        guard points.count > 1 else {
+            return points.first
+        }
+
+        let clampedX = min(max(xPosition, 0), size.width)
+        let horizontalStep = size.width / CGFloat(points.count - 1)
+        let index = Int((clampedX / horizontalStep).rounded())
+        let clampedIndex = min(max(index, 0), points.count - 1)
+        return points[clampedIndex]
+    }
 }
 
 private struct GridBackground: Shape {
@@ -261,61 +419,11 @@ private struct StockViewerInfoRow: View {
     }
 }
 
-private enum StockTimeframe: String, CaseIterable, Identifiable {
-    case oneDay
-    case oneWeek
-    case oneMonth
-    case threeMonths
-    case yearToDate
-    case oneYear
-    case fiveYears
-    case max
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .oneDay: "1D"
-        case .oneWeek: "1W"
-        case .oneMonth: "1M"
-        case .threeMonths: "3M"
-        case .yearToDate: "YTD"
-        case .oneYear: "1Y"
-        case .fiveYears: "5Y"
-        case .max: "MAX"
-        }
-    }
-
-    var pointCount: Int {
-        switch self {
-        case .oneDay: 32
-        case .oneWeek: 35
-        case .oneMonth: 42
-        case .threeMonths: 54
-        case .yearToDate: 58
-        case .oneYear: 64
-        case .fiveYears: 72
-        case .max: 82
-        }
-    }
-
-    var targetMoveMultiplier: Double {
-        switch self {
-        case .oneDay: 1
-        case .oneWeek: 2.4
-        case .oneMonth: 4.1
-        case .threeMonths: 7.2
-        case .yearToDate: 9.4
-        case .oneYear: 12.6
-        case .fiveYears: 34
-        case .max: 58
-        }
-    }
-}
-
 private struct StockChartPoint: Identifiable {
-    let id = UUID()
+    let index: Int
     let price: Double
+
+    var id: Int { index }
 }
 
 private struct StockTimeframeChange {
@@ -345,7 +453,7 @@ private struct StockTimeframeChange {
 }
 
 private enum StockChartDataFactory {
-    static func points(for quote: StockQuote, timeframe: StockTimeframe) -> [StockChartPoint] {
+    static func points(for quote: StockQuote, timeframe: StockChartTimeframe) -> [StockChartPoint] {
         let count = timeframe.pointCount
         let endPrice = max(quote.price, 1)
         let baseChange = quote.dailyChange == 0 ? fallbackChange(for: quote.symbol, price: endPrice) : quote.dailyChange
@@ -358,7 +466,7 @@ private enum StockChartDataFactory {
             let trend = startPrice + ((endPrice - startPrice) * progress)
             let wave = sin((progress * .pi * 4) + seed) * endPrice * 0.012
             let smallerWave = cos((progress * .pi * 9) + seed) * endPrice * 0.004
-            return StockChartPoint(price: max(trend + wave + smallerWave, 0.01))
+            return StockChartPoint(index: index, price: max(trend + wave + smallerWave, 0.01))
         }
     }
 
@@ -367,12 +475,6 @@ private enum StockChartDataFactory {
         let direction = symbolScore.isMultiple(of: 2) ? 1.0 : -1.0
         let magnitude = 0.006 + (Double(symbolScore % 9) / 1000)
         return price * magnitude * direction
-    }
-}
-
-private extension BaselineStockQuoteProvider {
-    static func quote(for symbol: String) -> StockQuote? {
-        quotes.first { $0.symbol == symbol.uppercased() }
     }
 }
 

@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct StockTreemapScreen: View {
-    @State private var quotes: [StockQuote] = []
-    @State private var isLoading = true
-    @State private var errorMessage: String?
+    @State private var quotes: [StockQuote] = BaselineStockQuoteProvider.quotes
+    @State private var isLoading = false
+    @State private var statusMessage = "Showing baseline market snapshot. Pull to refresh live quotes."
 
     private let quoteService: StockQuoteFetching = YahooFinanceQuoteService()
     private let featuredSymbols = [
@@ -50,17 +50,17 @@ struct StockTreemapScreen: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if isLoading && quotes.isEmpty {
-            loadingView
-        } else if let errorMessage, quotes.isEmpty {
-            errorView(errorMessage)
-        } else {
-            VStack(alignment: .leading, spacing: 18) {
-                StockTreemapView(quotes: sortedQuotes)
-                    .frame(height: 760)
-
-                moversView
+        VStack(alignment: .leading, spacing: 18) {
+            if isLoading {
+                loadingBanner
+            } else if !statusMessage.isEmpty {
+                statusBanner(statusMessage)
             }
+
+            StockTreemapView(quotes: sortedQuotes)
+                .frame(height: 760)
+
+            moversView
         }
     }
 
@@ -68,39 +68,34 @@ struct StockTreemapScreen: View {
         quotes.sorted { $0.marketCap > $1.marketCap }
     }
 
-    private var loadingView: some View {
-        VStack(spacing: 12) {
+    private var loadingBanner: some View {
+        HStack(spacing: 10) {
             ProgressView()
-                .controlSize(.large)
 
-            Text("Loading market map...")
-                .font(.subheadline)
+            Text("Refreshing live quotes...")
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 360)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func errorView(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Unable to load treemap")
-                .font(.headline)
+    private func statusBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
 
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var moversView: some View {
@@ -133,20 +128,46 @@ struct StockTreemapScreen: View {
 
     private func loadQuotes() async {
         isLoading = true
-        errorMessage = nil
 
         do {
             let fetchedQuotes = try await quoteService.fetchQuotes(for: featuredSymbols)
 
             await MainActor.run {
-                quotes = fetchedQuotes
+                if fetchedQuotes.isEmpty {
+                    quotes = BaselineStockQuoteProvider.quotes
+                    statusMessage = "Live quotes returned no data. Showing baseline market snapshot."
+                } else {
+                    quotes = mergedQuotes(liveQuotes: fetchedQuotes)
+                    statusMessage = "Live quotes refreshed. Market-cap sizing uses baseline weights."
+                }
+
                 isLoading = false
             }
         } catch {
             await MainActor.run {
-                errorMessage = "Check your connection and pull to refresh."
+                quotes = BaselineStockQuoteProvider.quotes
+                statusMessage = "Live quote provider is unavailable. Showing baseline market snapshot."
                 isLoading = false
             }
+        }
+    }
+
+    private func mergedQuotes(liveQuotes: [StockQuote]) -> [StockQuote] {
+        let baselineBySymbol = Dictionary(uniqueKeysWithValues: BaselineStockQuoteProvider.quotes.map { ($0.symbol, $0) })
+
+        return liveQuotes.map { quote in
+            guard let baseline = baselineBySymbol[quote.symbol] else {
+                return quote
+            }
+
+            return StockQuote(
+                symbol: quote.symbol,
+                shortName: quote.shortName,
+                price: quote.price,
+                dailyChange: quote.dailyChange,
+                dailyChangePercent: quote.dailyChangePercent,
+                marketCap: baseline.marketCap
+            )
         }
     }
 }
@@ -164,9 +185,14 @@ private struct StockTreemapView: View {
 
             ZStack(alignment: .topLeading) {
                 ForEach(rects) { rect in
-                    StockTreemapTile(quote: rect.quote)
-                        .frame(width: rect.frame.width, height: rect.frame.height)
-                        .position(x: rect.frame.midX, y: rect.frame.midY)
+                    NavigationLink {
+                        StockViewerScreen(symbol: rect.quote.symbol, companyName: rect.quote.shortName, quote: rect.quote)
+                    } label: {
+                        StockTreemapTile(quote: rect.quote)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: rect.frame.width, height: rect.frame.height)
+                    .position(x: rect.frame.midX, y: rect.frame.midY)
                 }
             }
         }

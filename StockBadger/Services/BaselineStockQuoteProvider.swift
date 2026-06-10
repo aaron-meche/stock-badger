@@ -27,4 +27,8 @@ enum BaselineStockQuoteProvider {
         StockQuote(symbol: "ABBV", shortName: "AbbVie Inc.", price: 186.35, dailyChange: 1.18, dailyChangePercent: 0.64, marketCap: 329_000_000_000),
         StockQuote(symbol: "BAC", shortName: "Bank of America Corporation", price: 45.41, dailyChange: -0.28, dailyChangePercent: -0.61, marketCap: 344_000_000_000)
     ]
+
+    static func quote(for symbol: String) -> StockQuote? {
+        quotes.first { $0.symbol == symbol.uppercased() }
+    }
 }

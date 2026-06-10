@@ -6,13 +6,31 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		93EB54052FD8FB6B0017A3DC /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* StockBadger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StockBadger.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		93EB54072FD8FBEB0017A3DC /* Exceptions for "StockBadger" folder in "StockBadger" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 000000000000000100000000 /* StockBadger */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* StockBadger */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93EB54072FD8FBEB0017A3DC /* Exceptions for "StockBadger" folder in "StockBadger" target */,
+			);
 			path = StockBadger;
 			sourceTree = "<group>";
 		};
@@ -30,6 +48,7 @@
 		000000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */,
 				000000000000000000000010 /* StockBadger */,
 				000000000000000000000020 /* Products */,
 			);
@@ -102,6 +121,7 @@
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				93EB54052FD8FB6B0017A3DC /* Secrets.xcconfig in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -249,7 +269,10 @@
 		};
 		000000000000000111000000 /* Debug configuration for PBXNativeTarget "StockBadger" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6J8J5S4J2X;
@@ -257,6 +280,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StockBadger/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Stock Badger";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -265,7 +289,7 @@
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = "";
+				INFOPLIST_KEY_UILaunchStoryboardName = AppIcon;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
@@ -289,7 +313,10 @@
 		};
 		000000000000000112000000 /* Release configuration for PBXNativeTarget "StockBadger" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6J8J5S4J2X;
@@ -297,6 +324,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StockBadger/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Stock Badger";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -305,7 +333,7 @@
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = "";
+				INFOPLIST_KEY_UILaunchStoryboardName = AppIcon;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
