@@ -6,10 +6,6 @@
 	objectVersion = 90;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		93EB54052FD8FB6B0017A3DC /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* StockBadger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StockBadger.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -48,7 +44,6 @@
 		000000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				93EB54042FD8FB6B0017A3DC /* Secrets.xcconfig */,
 				000000000000000000000010 /* StockBadger */,
 				000000000000000000000020 /* Products */,
 			);
@@ -121,7 +116,6 @@
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
-				93EB54052FD8FB6B0017A3DC /* Secrets.xcconfig in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
